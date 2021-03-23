@@ -1,9 +1,11 @@
 mod chain;
-use chain::{Blockchain, Block, Transaction, TransactionData};
+use chain::{BlockChain, Block, Transaction, TransactionData};
 use std::borrow::BorrowMut;
 
 fn main() {
-    println!("Hello, world!");
+    println!("Demo RChain Version 1\n ----");
+
+    let mut bc = BlockChain::new();
 }
 
 

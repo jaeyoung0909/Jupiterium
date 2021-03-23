@@ -3,6 +3,7 @@ extern crate blake2;
 use blake2::{Blake2b, Digest};
 
 use std::collections::HashMap;
+use std::time::SystemTime;
 
 pub struct Transaction {
     nonce: u128,
@@ -51,7 +52,7 @@ impl Transaction {
             },
             
             TransactionData::TransferTokens { to, amount } => {
-                let revc_tokens: u128;
+                let recv_tokens: u128;
                 let sender_tokens: u128;
 
                 if let Some(recv) = world_state.get_account_by_id_mut(to) {
@@ -105,6 +106,7 @@ impl Transaction {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum TransactionData {
     CreateUserAccount (String),
     ChangeStoreValue {key: String, value: String},
@@ -142,7 +144,7 @@ impl Block {
         return Vec::from(hasher.finalize().as_ref());
     }
 
-    fn add_transaction(transanction: Transaction) {
+    fn add_transaction(&mut self, transaction: Transaction) {
         self.transactions.push(transaction);
         self.update_hash();
     }
@@ -160,7 +162,7 @@ impl Block {
         self.update_hash();
     }
 
-    fn valify_own_hash(& self) -> bool {
+    fn verify_own_hash(& self) -> bool {
         if self.hash.is_some() && self.hash.as_ref().unwrap().eq(
             &byte_vector_to_string(&self.calculate_hash())
         ) {
@@ -193,11 +195,11 @@ impl BlockChain {
         }
 
         if !(block.prev_hash == self.get_last_block_hash()) {
-            return Err("The new block has to point o the previous block");
+            return Err("The new block has to point o the previous block".into());
         }
 
         if block.get_transaction_count() == 0 {
-            return Err("There has to be at least one transaction");
+            return Err("There has to be at least one transaction".into());
         }
 
         //TODO: check duplicated nonce 
@@ -225,10 +227,10 @@ impl BlockChain {
             return None;
         }
 
-        self.blocks.last().hash.clone()
+        self.blocks.last().unwrap().hash.clone()
     }
 
-    fn check_validity(& self, block: Block) -> Result<bool, String> {
+    fn check_validity(& self, block: Block) -> Result<(), String> {
         for (block_num, block) in self.blocks.iter().enumerate() {
             if !block.verify_own_hash() {
                 return Err(format!("Stored hash for Block #{} \
@@ -237,7 +239,7 @@ impl BlockChain {
 
             if block_num == 0 {
                 if block.prev_hash.is_some() {
-                    return Err("genesis block does't have prev hash");
+                    return Err("genesis block does't have prev hash".into());
                 }
             } else {
                 if block.prev_hash.is_none() {
@@ -245,9 +247,9 @@ impl BlockChain {
                 }
                 // TODO : check the process. why not calculate the hash again?
                 let prev_hash_proposed = block.prev_hash.as_ref().unwrap();
-                let prev_hash_actual = self.blocks.last().hash.as_ref().unwrap();
+                let prev_hash_actual = self.blocks.last().unwrap().hash.as_ref().unwrap();
 
-                if !(&block.prev_hash == &self.blocks.last().hash) {
+                if !(&block.prev_hash == &self.blocks.last().unwrap().hash) {
                     return Err(format!("Block #{} is not connected to previous block (Hashed do \
                         not match. Sould b e `{}` but is `{}`", block_num, prev_hash_proposed, 
                     prev_hash_actual).into());
@@ -266,7 +268,7 @@ impl BlockChain {
     }
 }
 
-trait WorldState {
+pub trait WorldState {
     fn get_user_ids(&self) -> Vec<String>;
     fn get_account_by_id_mut(&mut self, id: &String) -> Option<&mut Account>;
     fn get_account_by_id(&self, id: &String) -> Option<& Account>;
@@ -282,7 +284,7 @@ impl WorldState for BlockChain {
         self.accounts.get_mut(id)
     }
 
-    fn get_account_by_id(&self, id: &String) -> Option<&mut Account> {
+    fn get_account_by_id(&self, id: &String) -> Option<& Account> {
         self.accounts.get(id)
     }
 
@@ -297,6 +299,7 @@ impl WorldState for BlockChain {
     }
 }
 
+#[derive(Clone)]
 pub struct Account {
     store: HashMap<String, String>,
     acc_type: AccountType,
@@ -313,6 +316,7 @@ impl Account {
     }
 }
 
+#[derive(Clone)]
 pub enum AccountType {
     User,
     Contract,
